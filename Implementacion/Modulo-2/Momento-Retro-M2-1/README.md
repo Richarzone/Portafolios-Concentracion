@@ -11,7 +11,7 @@ Uso general
 * `math`
 
 Metricas, evaluacion y utilidades
-* `seaborn`
+* `sklearn`
 
 ## Descripcion
 En este entregable se aplica un modelo de regresion logistica sin framework que clasificara el sexo de hombres y mujeres segun su estatura y peso.
