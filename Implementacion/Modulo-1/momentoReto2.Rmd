@@ -1,0 +1,277 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+title: "Momento de Retroalimentacion 2: Modulo 1"
+author: "Rciardo Andres Arriaga Quezada A01570553"
+date: "8 de septiembre de 2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(printr)
+```
+
+# Introduccion y Resumen
+Este análisis busca identificar cuáles son los principales factores que influyen en el 
+nivel contaminación de mercurio en peces de lagos de florida. Para esto se buscó si 
+existía una correlación entre el nivel de alcalinidad en el agua.
+Para obtener este resultado se buscó la correlación con todas las variables disponibles
+del dataset y se encontró que la alcalinidad tenía la mayor correlación además de
+variables relacionadas con el mercurio pero estas se descartaron por su alta 
+dependencia.
+
+#### Importacion de datos y librerias
+
+```{r}
+library(dplyr)
+library(modeest)
+library(Hmisc)
+library(reshape2)
+library(ggplot2)
+library(car)
+data <- read.csv("mercurio.csv")
+colnames(data) <- c("Id", "Lago", "Alcalinidad", "PH", "Calcio", "Clorofila", "con_med_mercurio",
+                    "num_peces", "min_con_mercurio", "max_con_mercurio", "prom_mercurio_pez", "edad")
+```
+
+## Descripcion de datos
+
+Para comenzar, lo primero que debemos hacer es conocer nuestros datos y entender como es que se comportan entre si y que es lo que aportan a nuestro sistema. Para realizar este analisis tomaremos las variables numericas de nuestro dataset y buscaremos en ellas su promedio, mediana, moda, desviacion estandar, varianza y maximo y minimo valor. Por ultimo para la variable "Lago" buscaremos solo su moda aunque sabemos que sera 1 ya que el dataset hace observaciones de 53 lagos diferentes.
+```{r}
+data_temp <- subset(data, select = -Id)
+for (col in names(data_temp)) {
+  if (class(data_temp[, col]) == "integer" | class(data_temp[, col]) == "numeric") {
+    c <- nchar(col)
+    cl <- 0
+    cr <- 0
+    if (c %% 2 != 0) {
+      cl <- c / 2
+      cr <- c / 2
+    } else {
+      cl <- c / 2
+      cr <- c / 2 + 1
+    }
+    cat(strrep('-', 30 - cl), col, strrep('-', 30 - cr), "\n")
+    cat("Promedio: ", mean(data_temp[, col]), " ",
+        "Mediana: ", median(data_temp[, col]), " ",
+        "Moda: ", mfv(data_temp[, col]), "\n")
+    cat("Desviacion estandar: ", sd(data_temp[, col]),
+        " ", "Varianza: ", var(data_temp[, col]), "\n")
+    cat("Minimo: ", min(data_temp[, col]), " ",
+        "Maximo: ", max(data_temp[, col]), "\n")
+    cat("\n")
+  }
+}
+for (col in names(data_temp)) {
+  if (class(data_temp[, col]) == "character") {
+    c <- nchar(col)
+    cl <- 0
+    cr <- 0
+    if (c %% 2 != 0) {
+      cl <- c / 2
+      cr <- c / 2
+    } else {
+      cl <- c / 2
+      cr <- c / 2 + 1
+    }
+    cat(strrep('-', 30 - cl), col, strrep('-', 30 - cr), "\n")
+    cat("Moda: ", mfv(data_temp[, col]), "\n")
+    cat("\n")
+    print(table(data_temp[, col]))
+    cat("\n")
+  }
+}
+```
+Viendo los resultados podemos comenzar a ver valores que podran servir y valores que podemos limpiar de nuestro dataset mas adelante.
+
+## Cuartiles
+
+Podemos hacer una exploracion mas profunda buscando los cuartiles de nuestras varibles.
+```{r}
+for (col in names(data_temp)) {
+  if (class(data_temp[, col]) == "integer" | class(data_temp[, col]) == "numeric") {
+    x <- data_temp[, col]
+    q <- quantile(x, c(0.25, 0.75))
+    ri <- q[2] - q[1]
+    c <- nchar(col)
+    cl <- 0
+    cr <- 0
+    if (c %% 2 != 0) {
+      cl <- c / 2
+      cr <- c / 2
+    } else {
+      cl <- c / 2
+      cr <- c / 2 + 1
+    }
+    cat(strrep('-', 30 - cl), col, strrep('-', 30 - cr), "\n")
+    cat("Quartil 1: ", q[1], " ", "Quartil 3: ", q[2], "\n")
+    boxplot(x, main = col, las = 2, xlab = "", ylab = "", horizontal = TRUE)
+    abline(v = q[1] - 1.5 * ri, lty = 2, col = "red")
+    abline(v = q[2] + 1.5 * ri, lty = 2, col = "red")
+    abline(v = q[1] - 3 * ri, lty = 2, col = "blue")
+    abline(v = q[2] + 3 * ri, lty = 2, col = "blue")
+  }
+}
+```
+
+## Histogramas y correlaciones
+
+Para continuar con el analisis graficaremos en histogramas la frecuencia de las variables numericas para ver si distribucion y crearemos una matriz de coorrelacion de todas contra todas nuestras variables numericas para encontrar las variables que tengan mayor relevancia para realizar el analisis esatdistico.
+```{r}
+data_nums_only <- subset(data, select = -c(Id, Lago))
+hist.data.frame(data_nums_only, nclass = 10, main = "Histogramas de variables numericas")
+```
+
+```{r}
+corr_mat <- cor(data_nums_only)
+corr_mat <- melt(corr_mat)
+ggplot(corr_mat, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = round(value, 2)), size = 3) +
+  scale_fill_gradient2(low = "red", mid = "white", high = "skyblue", midpoint = 0, limit = c(-1, 1), space = "Lab", name = "Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  coord_fixed()
+```
+Con esta matriz podemos observar la correlacion que tienen nuestras variables y podedmos observar comportamientos intereasantes que servirar para nuestro analisis, especificamente variables como la alcalinidad o el calcio nos pueden decir informacion necesaria para entender la consentracion de mercurio. Tambien podemos ver como todas las variables relacionadas con la concentracion de mercurio en general tienen una correlacion alta, esto puede parecer bueno a primera vista pero al tratarse de informacion muy similar existe dependencia entre estas variables. Para evitar crear un modelo erroneo habra que limpiar nuestro dataset para dejar solamente las variables que tengan correlacion entre ellas y que sean independientes.
+
+```{r}
+plot(data_nums_only$Alcalinidad, data_nums_only$prom_mercurio_pez)
+```
+Ya que la concentracion mediea de mercurio (con_med_mercurio) y el promedio de mercurio por pez (prom_mercurio_pez) tienen la correlacion mas alta podemos elegir estas variables para incluirlas en un dataset limpio que creara el modelo de regresion.
+
+## Excluimos variables con correlacion alta entre ellas
+```{r}
+data_clean <- subset(data_nums_only, select=-c(min_con_mercurio, max_con_mercurio, PH, Calcio, Clorofila, con_med_mercurio))
+```
+
+
+## Regresion lineal con todas las variables
+Realizamos una regresion lineal con nuestro dataset limpio.
+```{r}
+rl <- lm(prom_mercurio_pez ~ ., data = data_clean)
+summary(rl)
+```
+
+## Busqueda del mejor modelo
+Ahora buscamos el mejor modelo para conseguir los parametros de nuestra ecuacion y realizar una segunda regresion.
+```{r}
+step(rl, direction = "both", trace = 0)
+```
+
+## Regresion lineal con el mejor modelo
+```{r}
+rl_best <- lm(formula = prom_mercurio_pez ~ Alcalinidad, data = data_clean)
+summary(rl_best)
+```
+
+## Ecuacion de la regresion lineal
+```{r}
+cat("con_med_mercurio = ", round(rl_best$coefficients[1], 4), " +",
+    round(rl_best$coefficients[2], 4), "* prom_mercurio_pez")
+```
+
+```{r}
+plot(data_clean$Alcalinidad, data_clean$prom_mercurio_pez)
+abline(rl_best, col = "red")
+```
+
+## Validacion del modelo
+### Pruebas de hipotesis
+Realizaremos las siguientes pruebas de hipotesis para validar que nuestro modelo sea correcto:
+
+h0: beta1 = 0
+h1: beta1 != 0
+
+Reglas de decision: \newline
+* Si p-value < alpha, se rechaza H0 y se acepta H1 \newline
+* Si p-value > alpha, se rechaza H1 y se acepta H0 \newline
+* Si t* > t, se rechaza H0 y se acepta H1 \newline
+* Si t* < t, se rechaza H1 y se acepta H0 \newline
+
+```{r}
+s <- summary(rl_best)
+alpha <- 0.05
+n <- nrow(data_nums_only)
+t0 <- abs(qt(alpha / 2, n - 2))
+tes <- s$coefficients[, 3]
+for (i in 2:(length(tes))) {
+  if (abs(tes[i]) > t0 & s$coefficients[i, 4] < alpha) {
+    cat("La variable", names(rl_best$coefficients)[i], "es significativa. (t* > t0 & p < alpha)\n",
+        "t* =", round(tes[i], 4), ", t0 =", round(t0, 4), "\n",
+        "p-value =", s$coefficients[i, 4], ", alpha =", alpha, "\n")
+  } else {
+    cat("La variable", names(rl_best$coefficients)[i], "no es significativa. (t* < t0 & p > alpha)\n",
+        "t* =", round(tes[i], 4), ", t0 =", round(t0, 4), "\n",
+        "p-value =", s$coefficients[i, 4], ", alpha =", alpha, "\n")
+  }
+}
+```
+
+## Verificación de supuestos
+### Normalidad de los residuos
+
+En este grafico podemos observar que los residuos del modelo intenta seguir una distribucion normal pero en las colas la normalidad se pierde.
+
+```{r}
+E<-rl_best$residuals
+Y<-rl_best$fitted.values
+qqnorm(E)
+qqline(E,col="red")
+hist(E,col="lightcyan",freq=FALSE,main="Histograma de Residuos",xlab="",ylab="Densidad", ylim=c(0,max(density(E)$y)))
+lines(density(E),col="red")
+curve(dnorm(x,mean=mean(E),sd=sd(E)), add=TRUE, col="blue",lwd=2)
+shapiro.test(E)
+```
+
+### Homocedasticidad y modelo apropiado
+
+Gráfica Valores estimados vs Residuos
+
+Con esta grafica podemos comprobar la homocedasticidad del modelo. Podemos observar un cambio no tan drastico en la varianza de los valores graficados cambia a tener una ligera tendencia heterosedatica ya que podemos ver desde la X = 0.0 hasta 0.6 los valores se agrupados se comienzan a expandir pero pierden dicha expancion siguiendo el eje.
+
+```{r}
+plot(Y,E,ylab="Residuos",xlab="Valores estimados",pch=20,col="red")
+abline(h=0,col="red")
+text(Y[],E[],1:30,cex=0.8,pos=3,offset=0.2)
+```
+
+### Independencia
+
+Errores vs Orden de observación
+
+En esta grafica podemos ver como nuestros ejes no siguen ningun tipo de patron y demostrando independencia entre las variables elegidas para el modelo.
+
+```{r}
+n<-length(data_clean$prom_mercurio_pez)
+plot(c(1:n),rl_best$residuals,type="l",xlab="Orden de las observaciones",ylab="Residuos")
+abline(h=0,col="red")
+```
+
+```{r}
+#Prueba de autocorrelación para verificar independencia: H0: rho=0
+dwt(rl_best,alternative="two.sided")
+```
+
+## Datos atípicos o influyentes
+### Datos atípicos
+
+Se estandarizan los residuos y se observa si hay distancias mayores a 3.
+
+```{r}
+library(dplyr)
+data_clean$residuos_estandarizados <- rstudent(rl_best)  #Introduce una columna en data_clean con los residuos del modelo estandarizados
+ggplot(data = data_clean, aes(x = predict(rl_best), y = abs(residuos_estandarizados))) +
+        geom_hline(yintercept = 3, color = "red", linetype = "dashed") +
+        # se identifican en rojo observaciones con residuos estandarizados absolutos > 3
+        geom_point(aes(color = ifelse(abs(residuos_estandarizados) > 3, 'red', 'black'))) +
+        scale_color_identity() +
+        labs(title = "Distribucion de los residuos estandarizados",x = "prediccion modelo") +
+        theme_bw() + theme(plot.title = element_text(hjust = 0.5))
+which(abs(data_clean$residuos_estandarizados)>3)
+```
+# Conclusion
+Con este análisis podemos concluir que la alcalinidad puede no ser un factor para la contaminación de mercurio ya que a pesar de que el modelo cumple con algunas pruebas la variable no se normaliza cuando se mueve hacia las colas. Una corrección que se podría hacer seria intentar usar alguna variable relacionada con el mercurio ya que Florida es un estado en el que se reportar niveles peligrosos de mercurio en el aire y ese es un factor por el cual los ríos del estado están contaminados.
